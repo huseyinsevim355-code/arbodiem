@@ -393,6 +393,12 @@ p{margin:0}
 /* ---------- Yükleme ---------- */
 .install-link{height:48px;border-radius:14px;border:1px dashed var(--line-2);background:none;color:var(--soft);font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;gap:8px}
 .install-link svg{width:18px;height:18px;color:var(--sky)}
+.ntfy-steps{margin:0 14px 12px;padding:14px;border-radius:16px;background:color-mix(in srgb,#F472B6 9%,transparent);border:1px solid color-mix(in srgb,#F472B6 30%,transparent);font-size:13.5px;line-height:1.5}
+.ntfy-steps ol{margin:0 0 10px;padding-left:20px}
+.ntfy-steps li{margin-bottom:4px}
+.ntfy-topic{font-family:ui-monospace,monospace;font-weight:800;font-size:13px;padding:9px 12px;border-radius:10px;background:var(--surface-2);border:1px dashed var(--line-2);margin-bottom:10px;word-break:break-all}
+.ntfy-btns{display:flex;flex-wrap:wrap;gap:8px}
+.ntfy-btns .btn{height:40px;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
 .quote-line{margin:0 0 14px;padding:12px 16px;border-radius:16px;background:color-mix(in srgb,var(--accent) 10%,transparent);border:1px solid color-mix(in srgb,var(--accent) 28%,transparent);font-weight:700;font-size:14px;line-height:1.45;color:var(--fg)}
 .quote-line small{display:block;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin-bottom:3px}
 .notify-banner{margin-bottom:14px;background:linear-gradient(120deg,rgba(251,191,36,.22),rgba(244,114,182,.16))!important;border-color:rgba(251,191,36,.38)!important}
@@ -647,7 +653,7 @@ function treeSVG(n, seed){
 const KEY = 'arbodiem.v1';
 let S = null;
 function load(){ try{ const raw = localStorage.getItem(KEY); if(raw) return JSON.parse(raw); }catch(e){} return null; }
-function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} try{ ozetPlanla(); }catch(e){} }
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} try{ ozetPlanla(); }catch(e){} try{ ntfyPlanla(); }catch(e){} }
 
 function mk(title,cat,date,time,alarm,done,repeat){
   return {id:uid(),title,cat,date,time:time||'',alarm:alarm||'',done:!!done,doneAt:done?new Date().toISOString():null,repeat:repeat||null,spawned:false,sample:true};
@@ -1006,7 +1012,7 @@ function vProfil(){
       '<div class="set"><span class="ic" style="--c:#FB7185">'+I.alarm+'</span><label class="txt" for="leadSel">Alarm<small>Saatli görevlerde otomatik</small></label><select id="leadSel">'+[5,10,15,30,60].map(v=>'<option value="'+v+'"'+(S.settings.lead===v?' selected':'')+'>'+v+' dk önce</option>').join('')+'</select></div>'+
       '<div class="set"><span class="ic" style="--c:#38BDF8">'+I.bugun+'</span><label class="txt" for="mornIn">Sabah özeti<small>Bu saatten sonra görevlerin + günün sözü bildirim olarak gelir</small></label><input type="time" id="mornIn" value="'+S.settings.morning+'"></div>'+
       '<div class="set"><span class="ic" style="--c:#A78BFA">'+I.alarm+'</span><span class="txt">Alarmı dene<small>Uyarının nasıl görüneceğini gör</small></span><button class="btn" style="height:38px" data-act="testAlarm">Dene</button></div>'+
-      '<div class="set"><span class="ic" style="--c:#4ADE80">'+I.bell+'</span><span class="txt">Günlük özeti dene<small>Telefonun üstüne gelecek bildirimi gör</small></span><button class="btn" style="height:38px" data-act="testOzet">Dene</button></div>'+
+      '<div class="set"><span class="ic" style="--c:#4ADE80">'+I.bell+'</span><span class="txt">Günlük özeti dene<small>Telefonun üstüne gelecek bildirimi gör</small></span><button class="btn" style="height:38px" data-act="testOzet">Dene</button></div>'+ntfyRows()+
     '</div>'+
     '<p class="label">Görünüm ve veri</p><div class="set-group">'+
       '<div class="set"><span class="ic" style="--c:#2DD4BF">'+I.monitor+'</span><span class="txt">Masaüstü görünümü<small>Telefonda geniş ekran düzeni</small></span><button class="switch" role="switch" aria-checked="'+!!S.settings.desktop+'" aria-label="Masaüstü görünümü" data-act="toggleDesktop"></button></div>'+
@@ -1577,6 +1583,7 @@ document.addEventListener('change', e=>{
   const id = e.target.id;
   if(id==='leadSel'){ S.settings.lead = +e.target.value; save(); toast('Alarm: görevden '+S.settings.lead+' dk önce'); }
   if(id==='mornIn'){ S.settings.morning = e.target.value; save(); }
+  if(id==='araSel'){ S.settings.ntfyAra = e.target.value; save(); render(); }
   if(id==='edFolder'){ saveEditing(); }
 });
 
@@ -1630,7 +1637,7 @@ function notifyBanner(){
 }
 function ozetToast(m){ try{ toast(m); }catch(e){} }
 function ozetKapali(){ return IN_CLAUDE || !S.loggedIn; }
-function ozetAcik(){ return !!S.settings.notify; }
+function ozetAcik(){ return !!S.settings.notify && !ntfyOn(); }
 function ozetPlanUret(){
   const days = {}, base = new Date(), today = todayY();
   for(let i=0;i<14;i++){
@@ -1655,6 +1662,11 @@ function ozetPlanUret(){
 }
 Object.assign(A, {
   testOzet: () => { ozetTest(); },
+  ntfyStart: () => { ntfyTopic(true); UI.ntfyKur = true; render(); },
+  ntfyCopy: () => { ntfyKopyala(); },
+  ntfyDone: () => { ntfyBagla(); UI.ntfyKur = false; toast('Bağlandı! Birazdan ntfy\'den deneme bildirimi gelecek.'); render(); },
+  ntfyTestBtn: () => { ntfyTest(); },
+  ntfyOff: () => { ntfyKapat().then(()=>{ toast('ntfy hatırlatmaları kapatıldı.'); render(); }); },
   enableNotify: () => {
     S.settings.notify = true; save();
     try{ Notification.requestPermission().then(p=>{ if(p==='granted'){ toast('Bildirimler açıldı. Her gün görevlerin telefonun üstüne gelecek.'); ozetCalistir(false); } else toast('Bildirim izni verilmedi.'); render(); }); }catch(e){}
@@ -1662,6 +1674,139 @@ Object.assign(A, {
   hideNotifyBanner: () => { try{ localStorage.setItem(KEY+'.nbHide','1'); }catch(e){} render(); }
 });
 setTimeout(()=>{ try{ ozetCalistir(false); }catch(e){} }, 2500);
+/* ---------- ntfy: uygulama kapalıyken de tam saatinde telefon bildirimi ---------- */
+const NTFY_HOST = 'https://ntfy.sh', NTFY_APP = 'a';
+const NTFY_SENT_KEY = 'ntfySent.' + NTFY_APP, NTFY_ON_KEY = 'ntfyOn.' + NTFY_APP;
+function ntfyGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function ntfySet(k,v){ try{ if(v==null) localStorage.removeItem(k); else localStorage.setItem(k,v); }catch(e){} }
+function ntfyTopic(create){
+  let t = ntfyGet('ntfyTopic');
+  if(!t && create){
+    const a = new Uint8Array(16); (window.crypto||{}).getRandomValues ? crypto.getRandomValues(a) : a.forEach((_,i)=>a[i]=Math.random()*256|0);
+    t = 'hs-' + Array.from(a, b=>'abcdefghijkmnpqrstuvwxyz23456789'[b % 32]).join('');
+    ntfySet('ntfyTopic', t);
+  }
+  return t;
+}
+function ntfyOn(){ return ntfyGet(NTFY_ON_KEY)==='1' && !!ntfyTopic(false); }
+function ntfySubLink(){ return 'ntfy://ntfy.sh/' + ntfyTopic(true) + '?display=' + encodeURIComponent('Hatırlatmalarım'); }
+function ntfyLoad(){ try{ return JSON.parse(ntfyGet(NTFY_SENT_KEY)) || {}; }catch(e){ return {}; } }
+function ntfyHash(s){ let h = 5381; for(let i=0;i<s.length;i++) h = ((h<<5) + h + s.charCodeAt(i))>>>0; return h.toString(36); }
+function ntfySid(s){ return String(s).replace(/[^A-Za-z0-9_-]/g,'').slice(0,60); }
+function ntfyAt(dateObj, hhmm){ const p = String(hhmm||'09:00').split(':').map(Number); const d = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), p[0]||0, p[1]||0, 0); return Math.floor(d.getTime()/1000); }
+async function ntfyPost(body){
+  const r = await fetch(NTFY_HOST + '/', { method:'POST', body: JSON.stringify(body) });
+  if(!r.ok) throw new Error('ntfy ' + r.status);
+  return r;
+}
+async function ntfyDelete(sid){
+  const r = await fetch(NTFY_HOST + '/' + ntfyTopic(false) + '/' + sid, { method:'DELETE' });
+  if(!r.ok && r.status!==404) throw new Error('ntfy ' + r.status);
+}
+let ntfyBusy = false, ntfyAgain = false, ntfyT = 0;
+function ntfyPlanla(){ clearTimeout(ntfyT); ntfyT = setTimeout(()=>{ ntfySync(); }, 4000); }
+async function ntfySync(){
+  if(ntfyBusy){ ntfyAgain = true; return; }
+  const topic = ntfyTopic(false); if(!topic) return;
+  ntfyBusy = true;
+  try{
+    const now = Math.floor(Date.now()/1000), sent = ntfyLoad();
+    for(const k in sent) if(sent[k].at < now - 120) delete sent[k];
+    let want = [];
+    if(ntfyOn() && !ntfyKapali()){
+      try{ want = ntfyIstenen(now) || []; }catch(e){ console.error('[ntfy]', e); want = []; }
+      want = want.filter(w=>w.at > now + 20 && w.at < now + 71*3600);
+      // 3 gün açılmazsa son hatırlatma: "uygulamayı bir kez aç"
+      if(want.length){
+        let keepAt = now + 71*3600 - 300; const kd = new Date(keepAt*1000);
+        if(kd.getHours() >= 22) keepAt = ntfyAt(kd, '21:30');
+        else if(kd.getHours() < 8){ const pv = new Date(kd.getFullYear(), kd.getMonth(), kd.getDate()-1); keepAt = ntfyAt(pv, '21:30'); }
+        want.push({ sid:'keep', at: keepAt, title: ntfyAppAdi()+' seni bekliyor 🔔', message:'Hatırlatmaların devam etsin diye uygulamayı bir kez aç. Açtığında önümüzdeki 3 günün bildirimleri yeniden kurulur.', tags:['bell'], priority:3 });
+      }
+    }
+    const wanted = {}; want.forEach(w=>{ w.sid = ntfySid(NTFY_APP + '-' + w.sid); wanted[w.sid] = w; });
+    let ops = 0;
+    for(const sid in wanted){
+      const w = wanted[sid], h = ntfyHash([w.at, w.title, w.message, w.priority||3].join('|'));
+      if(sent[sid] && sent[sid].h===h) continue;
+      if(ops++ >= 40) break;
+      await ntfyPost({ topic, sequence_id: sid, title: w.title, message: w.message, tags: w.tags||[], priority: w.priority||3, delay: String(w.at), click: ntfyAppUrl(), icon: ntfyIconUrl() });
+      sent[sid] = { at: w.at, h }; ntfySet(NTFY_SENT_KEY, JSON.stringify(sent));
+      await new Promise(r=>setTimeout(r, 250));
+    }
+    for(const sid in sent){
+      if(wanted[sid]) continue;
+      if(ops++ >= 40) break;
+      try{ await ntfyDelete(sid); }catch(e){ throw e; }
+      delete sent[sid]; ntfySet(NTFY_SENT_KEY, JSON.stringify(sent));
+      await new Promise(r=>setTimeout(r, 250));
+    }
+    ntfySet('ntfyLastSync.' + NTFY_APP, String(Date.now()));
+  }catch(e){ console.warn('[ntfy] eşitleme sonra tekrar denenecek', e); }
+  finally{ ntfyBusy = false; if(ntfyAgain){ ntfyAgain = false; ntfyPlanla(); } }
+}
+async function ntfyTest(){
+  const topic = ntfyTopic(false); if(!topic){ ntfyMesaj('Önce ntfy\'yi bağla.'); return; }
+  try{
+    await ntfyPost({ topic, title: ntfyAppAdi()+' bağlantısı çalışıyor ✅', message:'Bu bildirimi gördüysen her şey hazır. Hatırlatmaların artık uygulama kapalıyken de gelecek.', tags:['white_check_mark'], priority:4, click: ntfyAppUrl(), icon: ntfyIconUrl() });
+    ntfyMesaj('Deneme gönderildi — birkaç saniye içinde telefonun üstüne gelmeli.');
+  }catch(e){ ntfyMesaj('Gönderilemedi. İnternet bağlantını kontrol et.'); }
+}
+function ntfyBagla(){ ntfyTopic(true); ntfySet(NTFY_ON_KEY, '1'); ntfySync().then(()=>ntfyTest()); }
+async function ntfyKapat(){ ntfySet(NTFY_ON_KEY, null); await ntfySync(); }
+function ntfyKopyala(){
+  const t = ntfyTopic(true);
+  const done = ()=>ntfyMesaj('Kanal adı kopyalandı: ' + t);
+  try{ navigator.clipboard.writeText(t).then(done, ()=>ntfyMesaj('Kanal adı: ' + t)); }catch(e){ ntfyMesaj('Kanal adı: ' + t); }
+}
+setInterval(()=>{ if(ntfyOn()) ntfySync(); }, 30*60*1000);
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible' && ntfyOn()) ntfyPlanla(); });
+setTimeout(()=>{ ntfySync(); }, 3000);
+
+function ntfyKapali(){ return IN_CLAUDE || !S.loggedIn; }
+function ntfyAppAdi(){ return 'Arbodiem'; }
+function ntfyAppUrl(){ return new URL('./?uygulama=arbodiem', location.href).href; }
+function ntfyIconUrl(){ return new URL('./icon-192.png', location.href).href; }
+function ntfyMesaj(m){ try{ toast(m); }catch(e){} }
+const ARA_SECENEK = { kapali:[], ogle:['13:00'], iki:['13:00','18:00'], uc:['12:00','15:00','18:00'] };
+function ntfyIstenen(now){
+  const out = [], plan = ozetPlanUret(), morning = S.settings.morning || '09:00', base = new Date(), today = todayY();
+  const ara = ARA_SECENEK[S.settings.ntfyAra || 'iki'] || [];
+  for(let i=0;i<4;i++){
+    const d = new Date(base.getFullYear(), base.getMonth(), base.getDate()+i), key = ymd(d), k8 = key.replace(/-/g,'');
+    const it = plan.days[key];
+    if(it) out.push({ sid:'oz-'+k8, at: ntfyAt(d, morning), title: it.title, message: it.body, tags:['seedling'], priority:3 });
+    const list = S.tasks.filter(x=>!x.done && !x.skipped && x.date===key).sort(sortTasks);
+    const late = i===0 ? S.tasks.filter(x=>!x.done && !x.skipped && x.date<today) : [];
+    ara.forEach(t=>{
+      const all = list.concat(late), n = all.length; if(!n) return;
+      const body = all.slice(0,4).map(x=>(x.date<key ? '⏳ ' : (x.time ? x.time+' · ' : '• '))+x.title).join('\n') + (n>4 ? '\n+'+(n-4)+' görev daha' : '');
+      out.push({ sid:'ara'+t.replace(':','')+'-'+k8, at: ntfyAt(d, t), title: 'Hatırlatma: '+n+' görevin bekliyor ⏳', message: body + '\nBitirdiğinde Arbodiem\'de işaretlemeyi unutma.', tags:['hourglass_flowing_sand'], priority:3 });
+    });
+    list.filter(x=>/^\d{1,2}:\d{2}$/.test(String(x.alarm||''))).forEach(x=>{
+      out.push({ sid:'al-'+x.id+'-'+k8, at: ntfyAt(d, x.alarm), title: '⏰ '+x.title, message: 'Saat '+x.alarm+(x.time && x.time!==x.alarm ? ' · görev saati '+x.time : '')+' · Görevin zamanı geldi.', tags:['alarm_clock'], priority:5 });
+    });
+  }
+  return out;
+}
+function ntfyRows(){
+  if(IN_CLAUDE) return '';
+  if(!ntfyOn()){
+    let h = '<div class="set"><span class="ic" style="--c:#F472B6">'+I.bell+'</span><span class="txt">Telefon bildirimleri (ntfy)<small>Uygulama kapalıyken de sabah özeti, ara hatırlatmalar ve alarmlar tam saatinde gelir</small></span><button class="btn btn-primary" style="height:38px" data-act="ntfyStart">Kur</button></div>';
+    if(UI.ntfyKur) h += '<div class="ntfy-steps"><ol>'+
+      '<li><b>ntfy\'de abone ol</b> butonuna bas, ntfy açılınca <b>Abone ol</b>\'a dokun.</li>'+
+      '<li>ntfy açılmazsa: <b>Kanal adını kopyala</b> → ntfy\'de sağ alttaki <b>+</b> → yapıştır → <b>Abone ol</b>.</li>'+
+      '<li>Bitince burada <b>Bağlandım</b>\'a bas.</li></ol>'+
+      '<div class="ntfy-topic">'+esc(ntfyTopic(true))+'</div>'+
+      '<div class="ntfy-btns"><a class="btn btn-primary" href="'+esc(ntfySubLink())+'">ntfy\'de abone ol</a><button class="btn" data-act="ntfyCopy">Kanal adını kopyala</button><button class="btn" data-act="ntfyDone">Bağlandım ✓</button></div></div>';
+    return h;
+  }
+  const v = S.settings.ntfyAra || 'iki', last = +(ntfyGet('ntfyLastSync.a')||0);
+  const opt = (k,l)=>'<option value="'+k+'"'+(v===k?' selected':'')+'>'+l+'</option>';
+  return '<div class="set"><span class="ic" style="--c:#F472B6">'+I.bell+'</span><span class="txt">Telefon bildirimleri: Açık ✓<small>'+(last ? 'Son güncelleme '+new Date(last).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})+' · ' : '')+'3 günde bir uygulamayı açman yeterli</small></span><button class="btn" style="height:38px" data-act="ntfyOff">Kapat</button></div>'+
+    '<div class="set"><span class="ic" style="--c:#FBBF24">'+I.bell+'</span><label class="txt" for="araSel">Ara hatırlatmalar<small>Bitmemiş görevlerin gün içinde hatırlatılır</small></label><select id="araSel">'+opt('kapali','Kapalı')+opt('ogle','13:00')+opt('iki','13:00 · 18:00')+opt('uc','12 · 15 · 18')+'</select></div>'+
+    '<div class="set"><span class="ic" style="--c:#4ADE80">'+I.bell+'</span><span class="txt">ntfy\'yi dene<small>Hemen bir deneme bildirimi gönderir</small></span><button class="btn" style="height:38px" data-act="ntfyTestBtn">Dene</button></div>';
+}
 try{ if(!IN_CLAUDE && 'serviceWorker' in navigator && /^https?:/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(()=>{}); }catch(e){}
 render();
 checkAlarms();
